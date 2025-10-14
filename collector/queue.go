@@ -18,9 +18,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package collector
 
 import (
+	"log/slog"
 	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -96,14 +96,14 @@ type QueueCollector struct {
 	preempted   *prometheus.Desc
 	nodeFail    *prometheus.Desc
 	outOfMemory *prometheus.Desc
-	logger      log.Logger
+	logger      *slog.Logger
 }
 
 func init() {
 	registerCollector("queue", defaultEnabled, NewQueueCollector)
 }
 
-func NewQueueCollector(logger log.Logger) (Collector, error) {
+func NewQueueCollector(logger *slog.Logger) (Collector, error) {
 	return &QueueCollector{
 		logger:      logger,
 		pending:     prometheus.NewDesc("slurm_queue_pending", "Pending jobs in queue", nil, nil),

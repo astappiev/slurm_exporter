@@ -17,20 +17,18 @@ package main
 
 import (
 	"fmt"
-	stdlog "log"
+	"log/slog"
 	"net/http"
 	"os"
 	"sort"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/go-kit/kit/log/level"
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/promlog"
-	"github.com/prometheus/common/promlog/flag"
+	"github.com/prometheus/common/promslog"
+	"github.com/prometheus/common/promslog/flag"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	"github.com/prometheus/exporter-toolkit/web/kingpinflag"
@@ -55,13 +53,13 @@ type handler struct {
 	exporterMetricsRegistry *prometheus.Registry
 	includeExporterMetrics  bool
 	maxRequests             int
-	logger                  log.Logger
+	logger                  *slog.Logger
 }
 
 // ServeHTTP implements http.Handler.
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filters := r.URL.Query()["collect[]"]
-	level.Debug(h.logger).Log("msg", "collect query:", "filters", filters)
+	h.logger.Debug("collect query:", "filters", filters)
 
 	if len(filters) == 0 {
 		// No filters, use the prepared unfiltered handler.
@@ -71,7 +69,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// To serve filtered metrics, we create a filtering handler on the fly.
 	filteredHandler, err := h.innerHandler(filters...)
 	if err != nil {
-		level.Warn(h.logger).Log("msg", "Couldn't create filtered metrics handler:", "err", err)
+		h.logger.Warn("Couldn't create filtered metrics handler:", "err", err)
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(fmt.Sprintf("Couldn't create filtered metrics handler: %s", err)))
 		return
@@ -79,7 +77,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filteredHandler.ServeHTTP(w, r)
 }
 
-func newHandler(includeExporterMetrics bool, maxRequests int, logger log.Logger) *handler {
+func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger) *handler {
 	h := &handler{
 		exporterMetricsRegistry: prometheus.NewRegistry(),
 		includeExporterMetrics:  includeExporterMetrics,
@@ -114,14 +112,14 @@ func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
 	// Only log the creation of an unfiltered handler, which should happen
 	// only once upon startup.
 	if len(filters) == 0 {
-		level.Info(h.logger).Log("msg", "Enabled collectors")
+		h.logger.Info("Enabled collectors")
 		var collectors []string
 		for n := range nc.Collectors {
 			collectors = append(collectors, n)
 		}
 		sort.Strings(collectors)
 		for _, c := range collectors {
-			level.Info(h.logger).Log("collector", c)
+			h.logger.Info("Collector initialized", "collector", c)
 		}
 	}
 
@@ -136,7 +134,7 @@ func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
 		handler = promhttp.HandlerFor(
 			prometheus.Gatherers{h.exporterMetricsRegistry, r},
 			promhttp.HandlerOpts{
-				ErrorLog:            stdlog.New(log.NewStdlibAdapter(level.Error(h.logger)), "", 0),
+				ErrorLog:            slog.NewLogLogger(h.logger.Handler(), slog.LevelError),
 				ErrorHandling:       promhttp.ContinueOnError,
 				MaxRequestsInFlight: h.maxRequests,
 				Registry:            h.exporterMetricsRegistry,
@@ -151,7 +149,7 @@ func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
 		handler = promhttp.HandlerFor(
 			r,
 			promhttp.HandlerOpts{
-				ErrorLog:            stdlog.New(log.NewStdlibAdapter(level.Error(h.logger)), "", 0),
+				ErrorLog:            slog.NewLogLogger(h.logger.Handler(), slog.LevelError),
 				ErrorHandling:       promhttp.ContinueOnError,
 				MaxRequestsInFlight: h.maxRequests,
 			},
@@ -162,16 +160,16 @@ func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
 }
 
 func main() {
-	promlogConfig := &promlog.Config{}
+	promlogConfig := &promslog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promlogConfig)
 	kingpin.Version(version.Print("slurm_exporter"))
 	kingpin.CommandLine.UsageWriter(os.Stdout)
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
-	logger := promlog.New(promlogConfig)
+	logger := promslog.New(promlogConfig)
 
-	level.Info(logger).Log("msg", "Starting slurm_exporter", "version", version.Info())
-	level.Info(logger).Log("msg", "Build context", "context", version.BuildContext())
+	logger.Info("Starting slurm_exporter", "version", version.Info())
+	logger.Info("Build context", "context", version.BuildContext())
 
 	http.Handle(*metricsPath, newHandler(!*disableExporterMetrics, *maxRequests, logger))
 	if *metricsPath != "/" && *metricsPath != "" {
@@ -188,7 +186,7 @@ func main() {
 		}
 		landingPage, err := web.NewLandingPage(landingConfig)
 		if err != nil {
-			level.Error(logger).Log("err", err)
+			logger.Error("Error creating landing page", "err", err)
 			os.Exit(1)
 		}
 		http.Handle("/", landingPage)
@@ -196,7 +194,7 @@ func main() {
 
 	server := &http.Server{}
 	if err := web.ListenAndServe(server, toolkitFlags, logger); err != nil {
-		level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
+		logger.Error("Error starting HTTP server", "err", err)
 		os.Exit(1)
 	}
 }

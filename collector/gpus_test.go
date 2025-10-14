@@ -1,12 +1,13 @@
 package collector
 
 import (
-	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseGenericResources(t *testing.T) {

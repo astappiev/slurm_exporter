@@ -1,10 +1,11 @@
 package collector
 
 import (
-	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParsePartitionsMetrics(t *testing.T) {

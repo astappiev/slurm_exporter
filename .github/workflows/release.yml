@@ -13,10 +13,10 @@ jobs:
     env:
       VERSION: ${{ github.ref_name }}
     steps:
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: ^1.22
-      - uses: actions/checkout@v4
+          go-version: 'stable'
+      - uses: actions/checkout@v5
 
       - name: Promu - Crossbuild
         run: make crossbuild

@@ -18,9 +18,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package collector
 
 import (
+	"log/slog"
 	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -75,14 +75,14 @@ type PartitionCollector struct {
 	pending   *prometheus.Desc
 	running   *prometheus.Desc
 	total     *prometheus.Desc
-	logger    log.Logger
+	logger    *slog.Logger
 }
 
 func init() {
 	registerCollector("partition", defaultEnabled, NewPartitionCollector)
 }
 
-func NewPartitionCollector(logger log.Logger) (Collector, error) {
+func NewPartitionCollector(logger *slog.Logger) (Collector, error) {
 	return &PartitionCollector{
 		logger:    logger,
 		allocated: prometheus.NewDesc("slurm_partition_cpus_allocated", "Allocated CPUs for partition", []string{"partition"}, nil),

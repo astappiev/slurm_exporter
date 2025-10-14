@@ -18,11 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package collector
 
 import (
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -76,14 +76,14 @@ type AccountCollector struct {
 	running     *prometheus.Desc
 	runningCpus *prometheus.Desc
 	suspended   *prometheus.Desc
-	logger      log.Logger
+	logger      *slog.Logger
 }
 
 func init() {
 	registerCollector("account", defaultEnabled, NewAccountCollector)
 }
 
-func NewAccountCollector(logger log.Logger) (Collector, error) {
+func NewAccountCollector(logger *slog.Logger) (Collector, error) {
 	return &AccountCollector{
 		logger:      logger,
 		pending:     prometheus.NewDesc("slurm_account_jobs_pending", "Pending jobs for account", []string{"account"}, nil),

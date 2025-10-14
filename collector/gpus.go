@@ -19,10 +19,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package collector
 
 import (
+	"log/slog"
 	"strconv"
 	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -111,14 +111,14 @@ type GPUsCollector struct {
 	idle        *prometheus.Desc
 	total       *prometheus.Desc
 	utilization *prometheus.Desc
-	logger      log.Logger
+	logger      *slog.Logger
 }
 
 func init() {
 	registerCollector("gpus", defaultEnabled, NewGPUsCollector)
 }
 
-func NewGPUsCollector(logger log.Logger) (Collector, error) {
+func NewGPUsCollector(logger *slog.Logger) (Collector, error) {
 	return &GPUsCollector{
 		logger:      logger,
 		alloc:       prometheus.NewDesc("slurm_gpus_alloc", "Allocated GPUs", nil, nil),

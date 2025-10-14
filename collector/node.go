@@ -18,11 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package collector
 
 import (
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -78,7 +78,7 @@ type NodeCollector struct {
 	memTotal *prometheus.Desc
 	gpuAlloc *prometheus.Desc
 	gpuTotal *prometheus.Desc
-	logger   log.Logger
+	logger   *slog.Logger
 }
 
 func init() {
@@ -87,7 +87,7 @@ func init() {
 
 // NewNodeCollector creates a Prometheus collector to keep all our stats in
 // It returns a set of collections for consumption
-func NewNodeCollector(logger log.Logger) (Collector, error) {
+func NewNodeCollector(logger *slog.Logger) (Collector, error) {
 	return &NodeCollector{
 		logger:   logger,
 		cpuAlloc: prometheus.NewDesc("slurm_node_cpu_alloc", "Allocated CPUs per node", []string{"node", "status"}, nil),

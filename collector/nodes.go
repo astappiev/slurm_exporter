@@ -18,12 +18,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package collector
 
 import (
+	"log/slog"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -110,14 +110,14 @@ type NodesCollector struct {
 	mix    *prometheus.Desc
 	resv   *prometheus.Desc
 	plnd   *prometheus.Desc
-	logger log.Logger
+	logger *slog.Logger
 }
 
 func init() {
 	registerCollector("nodes", defaultEnabled, NewNodesCollector)
 }
 
-func NewNodesCollector(logger log.Logger) (Collector, error) {
+func NewNodesCollector(logger *slog.Logger) (Collector, error) {
 	return &NodesCollector{
 		logger: logger,
 		alloc:  prometheus.NewDesc("slurm_nodes_alloc", "Allocated nodes", nil, nil),

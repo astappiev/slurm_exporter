@@ -18,11 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package collector
 
 import (
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -114,14 +114,14 @@ type SchedulerCollector struct {
 	totalBackfilledJobsSinceStart *prometheus.Desc
 	totalBackfilledJobsSinceCycle *prometheus.Desc
 	totalBackfilledHeterogeneous  *prometheus.Desc
-	logger                        log.Logger
+	logger                        *slog.Logger
 }
 
 func init() {
 	registerCollector("scheduler", defaultEnabled, NewSchedulerCollector)
 }
 
-func NewSchedulerCollector(logger log.Logger) (Collector, error) {
+func NewSchedulerCollector(logger *slog.Logger) (Collector, error) {
 	return &SchedulerCollector{
 		logger:                        logger,
 		threads:                       prometheus.NewDesc("slurm_scheduler_threads", "Information provided by the Slurm sdiag command, number of scheduler threads ", nil, nil),

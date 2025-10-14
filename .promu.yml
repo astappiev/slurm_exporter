@@ -1,8 +1,5 @@
 go:
-  # Whenever the Go version is updated here,
-  # .circleci/config.yml should also be updated.
-  version: 1.22
-
+  version: 1.25
 repository:
   path: github.com/astappiev/slurm_exporter
 build:
@@ -19,12 +16,5 @@ tarball:
     - LICENSE
 crossbuild:
   platforms:
-    # - aix
-    # - darwin
-    # - dragonfly
-    # - freebsd
-    # - illumos
-    - linux/amd64
-    # - netbsd
-    # - openbsd
-    # - windows
+    - linux
+    - openbsd/amd64

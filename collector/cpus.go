@@ -18,10 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package collector
 
 import (
+	"log/slog"
 	"strconv"
 	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -54,14 +54,14 @@ type CPUsCollector struct {
 	idle   *prometheus.Desc
 	other  *prometheus.Desc
 	total  *prometheus.Desc
-	logger log.Logger
+	logger *slog.Logger
 }
 
 func init() {
 	registerCollector("cpus", defaultEnabled, NewCPUsCollector)
 }
 
-func NewCPUsCollector(logger log.Logger) (Collector, error) {
+func NewCPUsCollector(logger *slog.Logger) (Collector, error) {
 	return &CPUsCollector{
 		logger: logger,
 		alloc:  prometheus.NewDesc("slurm_cpus_alloc", "Allocated CPUs", nil, nil),

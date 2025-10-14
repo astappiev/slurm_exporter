@@ -18,10 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 package collector
 
 import (
+	"log/slog"
 	"strconv"
 	"strings"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -51,14 +51,14 @@ func ParseFairShareMetrics(input []byte) map[string]*FairShareMetrics {
 
 type FairShareCollector struct {
 	fairshare *prometheus.Desc
-	logger    log.Logger
+	logger    *slog.Logger
 }
 
 func init() {
 	registerCollector("fairshare", defaultDisabled, NewFairShareCollector)
 }
 
-func NewFairShareCollector(logger log.Logger) (Collector, error) {
+func NewFairShareCollector(logger *slog.Logger) (Collector, error) {
 	return &FairShareCollector{
 		logger:    logger,
 		fairshare: prometheus.NewDesc("slurm_account_fairshare", "FairShare for account", []string{"account"}, nil),

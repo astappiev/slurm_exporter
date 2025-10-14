@@ -19,12 +19,11 @@ package collector
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-kit/kit/log/level"
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -53,7 +52,7 @@ func ParseJobLine(line string) (*JobIdMetrics, error) {
 	return nil, fmt.Errorf("no job lines found")
 }
 
-func ParseJobMetrics(logger log.Logger, input []byte) []*JobIdMetrics {
+func ParseJobMetrics(logger *slog.Logger, input []byte) []*JobIdMetrics {
 	var metrics []*JobIdMetrics
 
 	for _, line := range SplitLines(input) {
@@ -61,7 +60,7 @@ func ParseJobMetrics(logger log.Logger, input []byte) []*JobIdMetrics {
 		if jobMetrics != nil {
 			metrics = append(metrics, jobMetrics)
 		} else if err == nil {
-			level.Warn(logger).Log("msg", "Unable to parser job line", "err", err)
+			logger.Warn("Unable to parser job line", "err", err)
 		}
 	}
 
@@ -95,14 +94,14 @@ func ParseElapsedTime(elapsedStr string) (float64, error) {
 
 type JobCollector struct {
 	jobInfo *prometheus.Desc
-	logger  log.Logger
+	logger  *slog.Logger
 }
 
 func init() {
 	registerCollector("job", defaultDisabled, NewJobCollector)
 }
 
-func NewJobCollector(logger log.Logger) (Collector, error) {
+func NewJobCollector(logger *slog.Logger) (Collector, error) {
 	return &JobCollector{
 		logger:  logger,
 		jobInfo: prometheus.NewDesc("slurm_job_info", "Slurm Job Information", []string{"JobID", "JobName", "User"}, nil),
@@ -126,12 +125,12 @@ func (jc *JobCollector) Collect(ch chan<- prometheus.Metric) error {
 	jobMetrics := ParseJobMetrics(jc.logger, out)
 	for _, metric := range jobMetrics {
 		if metric == nil {
-			level.Warn(jc.logger).Log("msg", "Skipping nil metric")
+			jc.logger.Warn("Skipping nil metric")
 			continue
 		}
 		ch <- prometheus.MustNewConstMetric(jc.jobInfo, prometheus.GaugeValue, metric.Elapsed, metric.JobID, metric.JobName, metric.User)
 
-		level.Info(jc.logger).Log("msg", fmt.Sprintf("Exported metrics for JobID: %s, JobName: %s, User: %s, Elapsed: %f", metric.JobID, metric.JobName, metric.User, metric.Elapsed))
+		jc.logger.Info(fmt.Sprintf("Exported metrics for JobID: %s, JobName: %s, User: %s, Elapsed: %f", metric.JobID, metric.JobName, metric.User, metric.Elapsed))
 	}
 
 	return nil
