@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -32,7 +33,7 @@ type FairShareMetrics struct {
 func ParseFairShareMetrics(input []byte) map[string]*FairShareMetrics {
 	accounts := make(map[string]*FairShareMetrics)
 
-	for _, line := range SplitLines(input) {
+	for _, line := range util.SplitLines(input) {
 		if !strings.HasPrefix(line, "  ") {
 			if strings.Contains(line, "|") {
 				parts := strings.Split(line, "|")
@@ -66,7 +67,7 @@ func NewFairShareCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (fsc *FairShareCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := RunCommand("sshare", "-n", "-P", "-o", "account,fairshare")
+	out, err := util.RunCommand("sshare", "-n", "-P", "-o", "account,fairshare")
 	if err != nil {
 		return err
 	}

@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -33,65 +34,31 @@ type GPUsMetrics struct {
 	utilization float64
 }
 
-type GenericResource struct {
-	gresType string
-	name     string
-	count    float64
-}
-
-func ParseGenericResources(input string) []GenericResource {
-	results := make([]GenericResource, 0)
-
-	if len(input) > 0 && strings.Contains(input, ":") {
-		// remove parenthesis and all content inside
-		for strings.Contains(input, "(") {
-			openIndex := strings.Index(input, "(")
-			closeIndex := strings.Index(input, ")")
-			input = input[:openIndex] + input[closeIndex+1:]
-		}
-
-		for _, single := range strings.Split(input, ",") {
-			parts := strings.Split(single, ":")
-			var name string
-			var count float64
-			if len(parts) == 2 {
-				count, _ = strconv.ParseFloat(parts[1], 64)
-			} else {
-				name = parts[1]
-				count, _ = strconv.ParseFloat(parts[2], 64)
-			}
-			results = append(results, GenericResource{gresType: parts[0], name: name, count: count})
-		}
-	}
-
-	return results
-}
-
 func ParseGPUsMetrics(data []byte) *GPUsMetrics {
 	var usedGpus = 0.0
 	var totalGpus = 0.0
-	for _, line := range SplitLines(data) {
+	for _, line := range util.SplitLines(data) {
 		if len(line) > 0 && strings.Contains(line, "gpu:") {
 			parts := strings.Fields(line)
 			numNodes, _ := strconv.ParseFloat(parts[0], 64)
 			if numNodes == 0 { // for old slurm the results were not grouped and `NodeName` was shown in first column
 				numNodes = 1
 			}
-			gres := ParseGenericResources(parts[1])
-			gresUsed := ParseGenericResources(parts[2])
+			gres := util.ParseGRES(parts[1])
+			gresUsed := util.ParseGRES(parts[2])
 
 			numNodeGpus := 0.0
 			for _, gres := range gres {
-				if gres.gresType == "gpu" {
-					numNodeGpus += gres.count
+				if gres.Kind == "gpu" {
+					numNodeGpus += gres.Total
 				}
 			}
 			totalGpus += numNodes * numNodeGpus
 
 			numNodeUsedGpus := 0.0
 			for _, gres := range gresUsed {
-				if gres.gresType == "gpu" {
-					numNodeUsedGpus += gres.count
+				if gres.Kind == "gpu" {
+					numNodeUsedGpus += gres.Total
 				}
 			}
 			usedGpus += numNodes * numNodeUsedGpus
@@ -129,7 +96,7 @@ func NewGPUsCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (cc *GPUsCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := RunCommand("sinfo", "-a", "-h", "--Format=Nodes: ,Gres: ,GresUsed:")
+	out, err := util.RunCommand("sinfo", "-a", "-h", "--Format=Nodes: ,GRES: ,GresUsed:")
 	if err != nil {
 		return err
 	}

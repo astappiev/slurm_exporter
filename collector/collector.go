@@ -18,8 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
@@ -189,34 +187,4 @@ var ErrNoData = errors.New("collector returned no data")
 
 func IsNoDataError(err error) bool {
 	return err == ErrNoData
-}
-
-func RunCommand(executable string, arguments ...string) ([]byte, error) {
-	subprocess := exec.Command(executable, arguments...)
-	out, err := subprocess.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("run command error: %w", err)
-	}
-	return out, nil
-}
-
-func SplitLines(input []byte) []string {
-	return strings.Split(strings.ReplaceAll(string(input), "\r", ""), "\n")
-}
-
-func RemoveDuplicates(s []string) []string {
-	m := map[string]bool{}
-	var t []string
-
-	// Walk through the slice 's' and for each value we haven't seen so far, append it to 't'.
-	for _, v := range s {
-		if _, seen := m[v]; !seen {
-			if len(v) > 0 {
-				t = append(t, v)
-				m[v] = true
-			}
-		}
-	}
-
-	return t
 }

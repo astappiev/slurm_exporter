@@ -19,35 +19,10 @@ package collector
 
 import (
 	"log/slog"
-	"strconv"
-	"strings"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-type CPUs struct {
-	alloc float64
-	idle  float64
-	other float64
-	total float64
-}
-
-func ParseCPUs(input string) CPUs {
-	var cpus CPUs
-	if len(input) > 0 && strings.Contains(input, "/") {
-		parts := strings.Split(strings.TrimSpace(input), "/")
-		cpus.alloc, _ = strconv.ParseFloat(parts[0], 64)
-		cpus.idle, _ = strconv.ParseFloat(parts[1], 64)
-		cpus.other, _ = strconv.ParseFloat(parts[2], 64)
-		cpus.total, _ = strconv.ParseFloat(parts[3], 64)
-	}
-	return cpus
-}
-
-func ParseCPUsMetrics(input []byte) *CPUs {
-	cpu := ParseCPUs(string(input))
-	return &cpu
-}
 
 type CPUsCollector struct {
 	alloc  *prometheus.Desc
@@ -64,24 +39,24 @@ func init() {
 func NewCPUsCollector(logger *slog.Logger) (Collector, error) {
 	return &CPUsCollector{
 		logger: logger,
-		alloc:  prometheus.NewDesc("slurm_cpus_alloc", "Allocated CPUs", nil, nil),
-		idle:   prometheus.NewDesc("slurm_cpus_idle", "Idle CPUs", nil, nil),
-		other:  prometheus.NewDesc("slurm_cpus_other", "Mix CPUs", nil, nil),
-		total:  prometheus.NewDesc("slurm_cpus_total", "Total CPUs", nil, nil),
+		alloc:  prometheus.NewDesc("slurm_cpus_alloc", "Allocated CPUS", nil, nil),
+		idle:   prometheus.NewDesc("slurm_cpus_idle", "Idle CPUS", nil, nil),
+		other:  prometheus.NewDesc("slurm_cpus_other", "Mix CPUS", nil, nil),
+		total:  prometheus.NewDesc("slurm_cpus_total", "Total CPUS", nil, nil),
 	}, nil
 }
 
 func (cc *CPUsCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := RunCommand("sinfo", "-h", "-a", "-o %C")
+	out, err := util.RunCommand("sinfo", "-h", "-a", "-o %C")
 	if err != nil {
 		return err
 	}
 
-	cm := ParseCPUsMetrics(out)
-	ch <- prometheus.MustNewConstMetric(cc.alloc, prometheus.GaugeValue, cm.alloc)
-	ch <- prometheus.MustNewConstMetric(cc.idle, prometheus.GaugeValue, cm.idle)
-	ch <- prometheus.MustNewConstMetric(cc.other, prometheus.GaugeValue, cm.other)
-	ch <- prometheus.MustNewConstMetric(cc.total, prometheus.GaugeValue, cm.total)
+	cm := util.ParseCPUS(string(out))
+	ch <- prometheus.MustNewConstMetric(cc.alloc, prometheus.GaugeValue, cm.Allocated)
+	ch <- prometheus.MustNewConstMetric(cc.idle, prometheus.GaugeValue, cm.Idle)
+	ch <- prometheus.MustNewConstMetric(cc.other, prometheus.GaugeValue, cm.Other)
+	ch <- prometheus.MustNewConstMetric(cc.total, prometheus.GaugeValue, cm.Total)
 
 	return nil
 }

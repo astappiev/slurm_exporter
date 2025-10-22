@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -56,10 +57,10 @@ func ParseNodesMetrics(input []byte) *NodesMetrics {
 		plnd  = regexp.MustCompile(`^plan`)
 	)
 
-	lines := SplitLines(input)
+	lines := util.SplitLines(input)
 	// Sort and remove all the duplicates from the 'sinfo' output
 	sort.Strings(lines)
-	linesUniq := RemoveDuplicates(lines)
+	linesUniq := util.RemoveDuplicates(lines)
 
 	var nm NodesMetrics
 	for _, line := range linesUniq {
@@ -135,7 +136,7 @@ func NewNodesCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (nc *NodesCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := RunCommand("sinfo", "-h", "-a", "-o %D,%T")
+	out, err := util.RunCommand("sinfo", "-h", "-a", "-o %D,%T")
 	if err != nil {
 		return err
 	}

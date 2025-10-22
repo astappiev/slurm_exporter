@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -43,7 +44,7 @@ func ParseAccountMetrics(input []byte) map[string]*JobMetrics {
 		suspended = regexp.MustCompile(`^suspended`)
 	)
 
-	for _, line := range SplitLines(input) {
+	for _, line := range util.SplitLines(input) {
 		if strings.Contains(line, "|") {
 			parts := strings.Split(line, "|")
 
@@ -95,7 +96,7 @@ func NewAccountCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (ac *AccountCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := RunCommand("squeue", "-a", "-r", "-h", "-o %A|%a|%T|%C")
+	out, err := util.RunCommand("squeue", "-a", "-r", "-h", "-o %A|%a|%T|%C")
 	if err != nil {
 		return err
 	}

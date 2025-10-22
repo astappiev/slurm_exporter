@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -56,7 +57,7 @@ func ParseSchedulerMetrics(input []byte) *SchedulerMetrics {
 	)
 
 	var sm SchedulerMetrics
-	lines := SplitLines(input)
+	lines := util.SplitLines(input)
 	// Guard variables to check for string repetitions in the output of sdiag
 	// (two occurrences of the following strings: 'Last cycle', 'Mean cycle')
 	lcCount := 0
@@ -140,7 +141,7 @@ func NewSchedulerCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (sc *SchedulerCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := RunCommand("sdiag")
+	out, err := util.RunCommand("sdiag")
 	if err != nil {
 		return err
 	}

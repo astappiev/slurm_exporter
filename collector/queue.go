@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -42,8 +43,7 @@ type QueueMetrics struct {
 
 func ParseQueueMetrics(input []byte) *QueueMetrics {
 	var qm QueueMetrics
-
-	for _, line := range SplitLines(input) {
+	for _, line := range util.SplitLines(input) {
 		if strings.Contains(line, ",") {
 			parts := strings.Split(line, ",")
 
@@ -123,7 +123,7 @@ func NewQueueCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (qc *QueueCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := RunCommand("squeue", "-a", "-r", "-h", "-o %A,%T,%r", "--states=all")
+	out, err := util.RunCommand("squeue", "-a", "-r", "-h", "-o %A,%T,%r", "--states=all")
 	if err != nil {
 		return err
 	}

@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -54,8 +55,7 @@ func ParseJobLine(line string) (*JobIdMetrics, error) {
 
 func ParseJobMetrics(logger *slog.Logger, input []byte) []*JobIdMetrics {
 	var metrics []*JobIdMetrics
-
-	for _, line := range SplitLines(input) {
+	for _, line := range util.SplitLines(input) {
 		jobMetrics, err := ParseJobLine(line)
 		if jobMetrics != nil {
 			metrics = append(metrics, jobMetrics)
@@ -112,8 +112,7 @@ func (jc *JobCollector) Collect(ch chan<- prometheus.Metric) error {
 	// Calculate the time one hour ago
 	oneHourAgoTime := time.Now().Add(-30 * time.Hour)
 	currentTime := time.Now()
-
-	out, err := RunCommand("sacct", "--state=COMPLETED",
+	out, err := util.RunCommand("sacct", "--state=COMPLETED",
 		"-S"+oneHourAgoTime.Format("2006-01-02T15:04:05"),
 		"-E"+currentTime.Format("2006-01-02T15:04:05"),
 		"-X", "-n", "-a",
