@@ -47,16 +47,27 @@ func NewCPUsCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (cc *CPUsCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := util.RunCommand("sinfo", "-h", "-a", "-o %C")
+	nodes, err := nodeCache.Get()
 	if err != nil {
 		return err
 	}
 
-	cm := util.ParseCPUS(string(out))
+	cm := cpusMetricsFromInfo(uniqueNodes(nodes))
 	ch <- prometheus.MustNewConstMetric(cc.alloc, prometheus.GaugeValue, cm.Allocated)
 	ch <- prometheus.MustNewConstMetric(cc.idle, prometheus.GaugeValue, cm.Idle)
 	ch <- prometheus.MustNewConstMetric(cc.other, prometheus.GaugeValue, cm.Other)
 	ch <- prometheus.MustNewConstMetric(cc.total, prometheus.GaugeValue, cm.Total)
 
 	return nil
+}
+
+func cpusMetricsFromInfo(nodes []NodeInfo) util.CPUS {
+	var cm util.CPUS
+	for _, node := range nodes {
+		cm.Allocated += node.CPU.Allocated
+		cm.Idle += node.CPU.Idle
+		cm.Other += node.CPU.Other
+		cm.Total += node.CPU.Total
+	}
+	return cm
 }

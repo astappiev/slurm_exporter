@@ -19,9 +19,7 @@ package collector
 
 import (
 	"log/slog"
-	"strings"
 
-	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -39,47 +37,6 @@ type QueueMetrics struct {
 	preempted   float64
 	nodeFail    float64
 	outOfMemory float64
-}
-
-func ParseQueueMetrics(input []byte) *QueueMetrics {
-	var qm QueueMetrics
-	for _, line := range util.SplitLines(input) {
-		if strings.Contains(line, ",") {
-			parts := strings.Split(line, ",")
-
-			state := parts[1]
-			switch state {
-			case "PENDING":
-				qm.pending++
-				if len(parts) > 2 && parts[2] == "Dependency" {
-					qm.pendingDep++
-				}
-			case "RUNNING":
-				qm.running++
-			case "SUSPENDED":
-				qm.suspended++
-			case "CANCELLED":
-				qm.cancelled++
-			case "COMPLETING":
-				qm.completing++
-			case "COMPLETED":
-				qm.completed++
-			case "CONFIGURING":
-				qm.configuring++
-			case "FAILED":
-				qm.failed++
-			case "TIMEOUT":
-				qm.timeout++
-			case "PREEMPTED":
-				qm.preempted++
-			case "NODE_FAIL":
-				qm.nodeFail++
-			case "OUT_OF_MEMORY":
-				qm.outOfMemory++
-			}
-		}
-	}
-	return &qm
 }
 
 type QueueCollector struct {
@@ -123,12 +80,12 @@ func NewQueueCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (qc *QueueCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := util.RunCommand("squeue", "-a", "-r", "-h", "-o %A,%T,%r", "--states=all")
+	jobs, err := jobCache.Get()
 	if err != nil {
 		return err
 	}
 
-	qm := ParseQueueMetrics(out)
+	qm := queueMetricsFromJobs(jobs)
 	ch <- prometheus.MustNewConstMetric(qc.pending, prometheus.GaugeValue, qm.pending)
 	ch <- prometheus.MustNewConstMetric(qc.pendingDep, prometheus.GaugeValue, qm.pendingDep)
 	ch <- prometheus.MustNewConstMetric(qc.running, prometheus.GaugeValue, qm.running)
@@ -144,4 +101,40 @@ func (qc *QueueCollector) Collect(ch chan<- prometheus.Metric) error {
 	ch <- prometheus.MustNewConstMetric(qc.outOfMemory, prometheus.GaugeValue, qm.outOfMemory)
 
 	return nil
+}
+
+func queueMetricsFromJobs(jobs []JobInfo) *QueueMetrics {
+	var qm QueueMetrics
+	for _, job := range jobs {
+		switch job.State {
+		case "PENDING":
+			qm.pending++
+			if job.Reason == "Dependency" {
+				qm.pendingDep++
+			}
+		case "RUNNING":
+			qm.running++
+		case "SUSPENDED":
+			qm.suspended++
+		case "CANCELLED":
+			qm.cancelled++
+		case "COMPLETING":
+			qm.completing++
+		case "COMPLETED":
+			qm.completed++
+		case "CONFIGURING":
+			qm.configuring++
+		case "FAILED":
+			qm.failed++
+		case "TIMEOUT":
+			qm.timeout++
+		case "PREEMPTED":
+			qm.preempted++
+		case "NODE_FAIL":
+			qm.nodeFail++
+		case "OUT_OF_MEMORY":
+			qm.outOfMemory++
+		}
+	}
+	return &qm
 }

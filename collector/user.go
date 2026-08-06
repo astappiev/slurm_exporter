@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -60,43 +59,6 @@ func ParseMemory(input string) float64 {
 	return float64(ret)
 }
 
-func ParseUserMetrics(input []byte) map[string]*UserJobMetrics {
-	users := make(map[string]*UserJobMetrics)
-
-	var (
-		pending   = regexp.MustCompile(`^pending`)
-		running   = regexp.MustCompile(`^running`)
-		suspended = regexp.MustCompile(`^suspended`)
-	)
-
-	for _, line := range util.SplitLines(input) {
-		if strings.Contains(line, "|") {
-			parts := strings.Split(line, "|")
-			user := parts[1]
-			_, key := users[user]
-			if !key {
-				users[user] = &UserJobMetrics{}
-			}
-			state := parts[2]
-			state = strings.ToLower(state)
-			cpus, _ := strconv.ParseFloat(parts[3], 64)
-			mem := ParseMemory(parts[4])
-			switch {
-			case pending.MatchString(state) == true:
-				users[user].jobsPending++
-				users[user].cpusPending += cpus
-			case running.MatchString(state) == true:
-				users[user].jobsRunning++
-				users[user].cpusRunning += cpus
-				users[user].memRunning += mem
-			case suspended.MatchString(state) == true:
-				users[user].jobsSuspended++
-			}
-		}
-	}
-	return users
-}
-
 type UserCollector struct {
 	jobsPending   *prometheus.Desc
 	cpusPending   *prometheus.Desc
@@ -124,12 +86,12 @@ func NewUserCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (uc *UserCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := util.RunCommand("squeue", "-a", "-r", "-h", "-o %A|%u|%T|%C|%m")
+	jobs, err := jobCache.Get()
 	if err != nil {
 		return err
 	}
 
-	um := ParseUserMetrics(out)
+	um := userMetricsFromJobs(jobs)
 	for u := range um {
 		if um[u].jobsPending > 0 {
 			ch <- prometheus.MustNewConstMetric(uc.jobsPending, prometheus.GaugeValue, um[u].jobsPending, u)
@@ -152,4 +114,28 @@ func (uc *UserCollector) Collect(ch chan<- prometheus.Metric) error {
 	}
 
 	return nil
+}
+
+func userMetricsFromJobs(jobs []JobInfo) map[string]*UserJobMetrics {
+	users := make(map[string]*UserJobMetrics)
+	for _, job := range jobs {
+		if job.User == "" {
+			continue
+		}
+		if users[job.User] == nil {
+			users[job.User] = &UserJobMetrics{}
+		}
+		switch {
+		case strings.HasPrefix(strings.ToLower(job.State), "pending"):
+			users[job.User].jobsPending++
+			users[job.User].cpusPending += job.CPUs
+		case strings.HasPrefix(strings.ToLower(job.State), "running"):
+			users[job.User].jobsRunning++
+			users[job.User].cpusRunning += job.CPUs
+			users[job.User].memRunning += job.Mem
+		case strings.HasPrefix(strings.ToLower(job.State), "suspended"):
+			users[job.User].jobsSuspended++
+		}
+	}
+	return users
 }

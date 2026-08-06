@@ -19,56 +19,9 @@ package collector
 
 import (
 	"log/slog"
-	"sort"
-	"strconv"
-	"strings"
 
-	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-// NodeMetrics stores metrics for each node
-type NodeMetrics struct {
-	memAlloc   float64
-	memTotal   float64
-	cpu        util.CPUS
-	gres       []util.GRES
-	gresUsed   []util.GRES
-	nodeStatus string
-}
-
-// ParseNodeMetrics takes the output of sinfo with node data
-func ParseNodeMetrics(input []byte) map[string]*NodeMetrics {
-	nodes := make(map[string]*NodeMetrics)
-
-	lines := util.SplitLines(input)
-	// Sort and remove all the duplicates from the 'sinfo' output
-	sort.Strings(lines)
-	linesUniq := util.RemoveDuplicates(lines)
-
-	for _, line := range linesUniq {
-		node := strings.Fields(line)
-		nodeName := node[0]
-		nodeStatus := node[4] // mixed, allocated, etc.
-
-		nodes[nodeName] = &NodeMetrics{}
-
-		nodes[nodeName].cpu = util.ParseCPUS(node[3])
-		memAlloc, _ := strconv.ParseFloat(node[1], 64)
-		memTotal, _ := strconv.ParseFloat(node[2], 64)
-
-		if len(node) >= 6 && node[5] != "(null)" && len(node[5]) > 0 {
-			nodes[nodeName].gres = util.ParseGRES(node[5])
-			nodes[nodeName].gresUsed = util.ParseGRES(node[6])
-		}
-
-		nodes[nodeName].memAlloc = memAlloc
-		nodes[nodeName].memTotal = memTotal
-		nodes[nodeName].nodeStatus = nodeStatus
-	}
-
-	return nodes
-}
 
 type NodeCollector struct {
 	cpuAlloc *prometheus.Desc
@@ -103,27 +56,26 @@ func NewNodeCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *NodeCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := util.RunCommand("sinfo", "-h", "-a", "-N", "-O", "NodeList: ,AllocMem: ,Memory: ,CPUsState: ,StateLong: ,GRES: ,Gresused:")
+	infos, err := nodeCache.Get()
 	if err != nil {
 		return err
 	}
 
-	nodes := ParseNodeMetrics(out)
-	for node := range nodes {
-		ch <- prometheus.MustNewConstMetric(c.cpuAlloc, prometheus.GaugeValue, nodes[node].cpu.Allocated, node, nodes[node].nodeStatus)
-		ch <- prometheus.MustNewConstMetric(c.cpuIdle, prometheus.GaugeValue, nodes[node].cpu.Idle, node, nodes[node].nodeStatus)
-		ch <- prometheus.MustNewConstMetric(c.cpuOther, prometheus.GaugeValue, nodes[node].cpu.Other, node, nodes[node].nodeStatus)
-		ch <- prometheus.MustNewConstMetric(c.cpuTotal, prometheus.GaugeValue, nodes[node].cpu.Total, node, nodes[node].nodeStatus)
-		ch <- prometheus.MustNewConstMetric(c.memAlloc, prometheus.GaugeValue, nodes[node].memAlloc, node, nodes[node].nodeStatus)
-		ch <- prometheus.MustNewConstMetric(c.memTotal, prometheus.GaugeValue, nodes[node].memTotal, node, nodes[node].nodeStatus)
-		if nodes[node].gresUsed != nil && len(nodes[node].gresUsed) != 0 {
-			for _, tres := range nodes[node].gresUsed {
-				ch <- prometheus.MustNewConstMetric(c.gpuAlloc, prometheus.GaugeValue, tres.Total, node, nodes[node].nodeStatus, tres.Type)
+	for _, node := range uniqueNodes(infos) {
+		ch <- prometheus.MustNewConstMetric(c.cpuAlloc, prometheus.GaugeValue, node.CPU.Allocated, node.Name, node.State)
+		ch <- prometheus.MustNewConstMetric(c.cpuIdle, prometheus.GaugeValue, node.CPU.Idle, node.Name, node.State)
+		ch <- prometheus.MustNewConstMetric(c.cpuOther, prometheus.GaugeValue, node.CPU.Other, node.Name, node.State)
+		ch <- prometheus.MustNewConstMetric(c.cpuTotal, prometheus.GaugeValue, node.CPU.Total, node.Name, node.State)
+		ch <- prometheus.MustNewConstMetric(c.memAlloc, prometheus.GaugeValue, node.MemAlloc, node.Name, node.State)
+		ch <- prometheus.MustNewConstMetric(c.memTotal, prometheus.GaugeValue, node.MemTotal, node.Name, node.State)
+		for _, tres := range node.GRESUsed {
+			if tres.Kind == "gpu" {
+				ch <- prometheus.MustNewConstMetric(c.gpuAlloc, prometheus.GaugeValue, tres.Total, node.Name, node.State, tres.Type)
 			}
 		}
-		if nodes[node].gres != nil && len(nodes[node].gres) != 0 {
-			for _, tres := range nodes[node].gres {
-				ch <- prometheus.MustNewConstMetric(c.gpuTotal, prometheus.GaugeValue, tres.Total, node, nodes[node].nodeStatus, tres.Type)
+		for _, tres := range node.GRES {
+			if tres.Kind == "gpu" {
+				ch <- prometheus.MustNewConstMetric(c.gpuTotal, prometheus.GaugeValue, tres.Total, node.Name, node.State, tres.Type)
 			}
 		}
 	}

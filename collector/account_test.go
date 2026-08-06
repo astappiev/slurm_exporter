@@ -1,22 +1,23 @@
 package collector
 
 import (
-	"io"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAccountMetrics(t *testing.T) {
-	// Read the input data from a file
-	file, _ := os.Open("fixtures/squeue/account.txt")
-	data, _ := io.ReadAll(file)
-	accounts := ParseAccountMetrics(data)
+func TestAccountMetricsFromJobs(t *testing.T) {
+	jobs := []JobInfo{
+		{Account: "project-a", State: "PENDING", CPUs: 8},
+		{Account: "project-a", State: "RUNNING", CPUs: 4},
+		{Account: "project-a", State: "RUNNING", CPUs: 2},
+		{Account: "project-b", State: "SUSPENDED", CPUs: 16},
+		{Account: "project-b", State: "COMPLETED", CPUs: 16},
+		{Account: "", State: "RUNNING", CPUs: 99},
+	}
 
-	assert.Equal(t, 35.0, accounts["ampere"].pending, "Miscount of pending account jobs")
-	assert.Equal(t, 152.0, accounts["ampere"].pendingCpus, "Miscount of cpusPending account jobs")
-	assert.Equal(t, 30.0, accounts["ampere"].running, "Miscount of running account jobs")
-	assert.Equal(t, 269.0, accounts["ampere"].runningCpus, "Miscount of runningCpus account jobs")
-	assert.Equal(t, 0.0, accounts["ampere"].suspended, "Miscount of suspended account jobs")
+	am := accountMetricsFromJobs(jobs)
+	assert.Len(t, am, 2)
+	assert.Equal(t, &JobMetrics{pending: 1, pendingCpus: 8, running: 2, runningCpus: 6}, am["project-a"])
+	assert.Equal(t, &JobMetrics{suspended: 1}, am["project-b"])
 }

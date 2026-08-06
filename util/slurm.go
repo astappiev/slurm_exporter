@@ -1,10 +1,12 @@
 package util
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // CPUS represents CPU allocation states in SLURM.
@@ -23,9 +25,14 @@ type GRES struct {
 }
 
 // RunCommand executes a SLURM command and returns its output.
-func RunCommand(executable string, arguments ...string) ([]byte, error) {
-	subprocess := exec.Command(executable, arguments...)
+func RunCommand(timeout time.Duration, executable string, arguments ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	subprocess := exec.CommandContext(ctx, executable, arguments...)
 	out, err := subprocess.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return nil, fmt.Errorf("command timed out after %s: %s", timeout, executable)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("run command error: %w", err)
 	}
@@ -35,21 +42,6 @@ func RunCommand(executable string, arguments ...string) ([]byte, error) {
 // SplitLines splits input bytes into lines, handling both Unix and Windows line endings.
 func SplitLines(input []byte) []string {
 	return strings.Split(strings.ReplaceAll(string(input), "\r", ""), "\n")
-}
-
-// RemoveDuplicates removes duplicate strings from a slice while preserving order. Empty strings filtered out.
-func RemoveDuplicates(s []string) []string {
-	seen := make(map[string]bool)
-	result := make([]string, 0, len(s))
-
-	for _, v := range s {
-		if len(v) > 0 && !seen[v] {
-			result = append(result, v)
-			seen[v] = true
-		}
-	}
-
-	return result
 }
 
 // ParseCPUS parses SLURM CPU state string in format "alloc/idle/other/total".

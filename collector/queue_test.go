@@ -1,30 +1,32 @@
 package collector
 
 import (
-	"io"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseQueueMetrics(t *testing.T) {
-	// Read the input data from a file
-	file, _ := os.Open("fixtures/squeue/queue.txt")
-	data, _ := io.ReadAll(file)
-	queueMetrics := ParseQueueMetrics(data)
+func TestQueueMetricsFromJobs(t *testing.T) {
+	jobs := []JobInfo{
+		{State: "PENDING", Reason: "Dependency"},
+		{State: "PENDING", Reason: "Resources"},
+		{State: "RUNNING"},
+		{State: "SUSPENDED"},
+		{State: "CANCELLED"},
+		{State: "COMPLETING"},
+		{State: "COMPLETED"},
+		{State: "CONFIGURING"},
+		{State: "FAILED"},
+		{State: "TIMEOUT"},
+		{State: "PREEMPTED"},
+		{State: "NODE_FAIL"},
+		{State: "OUT_OF_MEMORY"},
+	}
 
-	assert.Equal(t, 32.0, queueMetrics.pending, "Miscount of pending jobs")
-	assert.Equal(t, 0.0, queueMetrics.pendingDep, "Miscount of pendingDep jobs")
-	assert.Equal(t, 27.0, queueMetrics.running, "Miscount of running jobs")
-	assert.Equal(t, 0.0, queueMetrics.suspended, "Miscount of suspended jobs")
-	assert.Equal(t, 1.0, queueMetrics.cancelled, "Miscount of cancelled jobs")
-	assert.Equal(t, 1.0, queueMetrics.completing, "Miscount of completing jobs")
-	assert.Equal(t, 1.0, queueMetrics.completed, "Miscount of completed jobs")
-	assert.Equal(t, 0.0, queueMetrics.configuring, "Miscount of configuring jobs")
-	assert.Equal(t, 0.0, queueMetrics.failed, "Miscount of failed jobs")
-	assert.Equal(t, 0.0, queueMetrics.timeout, "Miscount of timeout jobs")
-	assert.Equal(t, 0.0, queueMetrics.preempted, "Miscount of preempted jobs")
-	assert.Equal(t, 0.0, queueMetrics.nodeFail, "Miscount of nodeFail jobs")
-	assert.Equal(t, 0.0, queueMetrics.outOfMemory, "Miscount of outOfMemory jobs")
+	qm := queueMetricsFromJobs(jobs)
+	assert.Equal(t, &QueueMetrics{
+		pending: 2, pendingDep: 1, running: 1, suspended: 1, cancelled: 1,
+		completing: 1, completed: 1, configuring: 1, failed: 1, timeout: 1,
+		preempted: 1, nodeFail: 1, outOfMemory: 1,
+	}, qm)
 }

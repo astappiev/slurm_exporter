@@ -20,10 +20,7 @@ package collector
 
 import (
 	"log/slog"
-	"strconv"
-	"strings"
 
-	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -32,45 +29,6 @@ type GPUsMetrics struct {
 	idle        float64
 	total       float64
 	utilization float64
-}
-
-func ParseGPUsMetrics(data []byte) *GPUsMetrics {
-	var usedGpus = 0.0
-	var totalGpus = 0.0
-	for _, line := range util.SplitLines(data) {
-		if len(line) > 0 && strings.Contains(line, "gpu:") {
-			parts := strings.Fields(line)
-			numNodes, _ := strconv.ParseFloat(parts[0], 64)
-			if numNodes == 0 { // for old slurm the results were not grouped and `NodeName` was shown in first column
-				numNodes = 1
-			}
-			gres := util.ParseGRES(parts[1])
-			gresUsed := util.ParseGRES(parts[2])
-
-			numNodeGpus := 0.0
-			for _, gres := range gres {
-				if gres.Kind == "gpu" {
-					numNodeGpus += gres.Total
-				}
-			}
-			totalGpus += numNodes * numNodeGpus
-
-			numNodeUsedGpus := 0.0
-			for _, gres := range gresUsed {
-				if gres.Kind == "gpu" {
-					numNodeUsedGpus += gres.Total
-				}
-			}
-			usedGpus += numNodes * numNodeUsedGpus
-		}
-	}
-
-	return &GPUsMetrics{
-		alloc:       usedGpus,
-		idle:        totalGpus - usedGpus,
-		total:       totalGpus,
-		utilization: usedGpus / totalGpus,
-	}
 }
 
 type GPUsCollector struct {
@@ -96,16 +54,37 @@ func NewGPUsCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (cc *GPUsCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := util.RunCommand("sinfo", "-a", "-h", "--Format=Nodes: ,GRES: ,GresUsed:")
+	nodes, err := nodeCache.Get()
 	if err != nil {
 		return err
 	}
 
-	cm := ParseGPUsMetrics(out)
+	cm := gpusMetricsFromInfo(uniqueNodes(nodes))
 	ch <- prometheus.MustNewConstMetric(cc.alloc, prometheus.GaugeValue, cm.alloc)
 	ch <- prometheus.MustNewConstMetric(cc.idle, prometheus.GaugeValue, cm.idle)
 	ch <- prometheus.MustNewConstMetric(cc.total, prometheus.GaugeValue, cm.total)
 	ch <- prometheus.MustNewConstMetric(cc.utilization, prometheus.GaugeValue, cm.utilization)
 
 	return nil
+}
+
+func gpusMetricsFromInfo(nodes []NodeInfo) *GPUsMetrics {
+	cm := &GPUsMetrics{}
+	for _, node := range nodes {
+		for _, gres := range node.GRES {
+			if gres.Kind == "gpu" {
+				cm.total += gres.Total
+			}
+		}
+		for _, gres := range node.GRESUsed {
+			if gres.Kind == "gpu" {
+				cm.alloc += gres.Total
+			}
+		}
+	}
+	cm.idle = cm.total - cm.alloc
+	if cm.total > 0 {
+		cm.utilization = cm.alloc / cm.total
+	}
+	return cm
 }

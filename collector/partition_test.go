@@ -1,27 +1,35 @@
 package collector
 
 import (
-	"io"
-	"os"
 	"testing"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParsePartitionsMetrics(t *testing.T) {
-	// Read the input data from a file
-	sinfoFile, _ := os.Open("fixtures/sinfo/partition.txt")
-	runningFile, _ := os.Open("fixtures/squeue/partition_running.txt")
-	pendingFile, _ := os.Open("fixtures/squeue/partition_pending.txt")
-	sinfoData, _ := io.ReadAll(sinfoFile)
-	runningData, _ := io.ReadAll(runningFile)
-	pendingData, _ := io.ReadAll(pendingFile)
-	partitionMetrics := ParsePartitionMetrics(sinfoData, runningData, pendingData)
+func TestPartitionMetricsFromInfo(t *testing.T) {
+	nodes := []NodeInfo{
+		{Name: "n1", Partition: "partition-a", CPU: util.CPUS{Allocated: 4, Idle: 4, Total: 8}},
+		{Name: "n2", Partition: "partition-a", CPU: util.CPUS{Allocated: 2, Idle: 6, Total: 8}},
+		{Name: "n3", Partition: "partition-b", CPU: util.CPUS{Allocated: 8, Idle: 0, Total: 8}},
+	}
+	jobs := []JobInfo{
+		{Partition: "partition-a", State: "PENDING"},
+		{Partition: "partition-a", State: "PENDING"},
+		{Partition: "partition-a", State: "RUNNING"},
+		{Partition: "partition-b", State: "RUNNING"},
+		{Partition: "unknown-partition", State: "RUNNING"},
+	}
 
-	assert.Equal(t, 273.0, partitionMetrics["ampere"].cpu.Allocated, "Miscount of allocated CPUs")
-	assert.Equal(t, 279.0, partitionMetrics["ampere"].cpu.Idle, "Miscount of idle CPUs")
-	assert.Equal(t, 480.0, partitionMetrics["ampere"].cpu.Other, "Miscount of other CPUs")
-	assert.Equal(t, 1032.0, partitionMetrics["ampere"].cpu.Total, "Miscount of total CPUs")
-	assert.Equal(t, 16.0, partitionMetrics["ampere"].jobsRunning, "Miscount of running jobs")
-	assert.Equal(t, 30.0, partitionMetrics["ampere"].jobsPending, "Miscount of pending jobs")
+	pm := partitionMetricsFromInfo(nodes, jobs)
+	assert.Len(t, pm, 2)
+	assert.Equal(t, &PartitionMetrics{
+		cpu:         util.CPUS{Allocated: 6, Idle: 10, Total: 16},
+		jobsPending: 2,
+		jobsRunning: 1,
+	}, pm["partition-a"])
+	assert.Equal(t, &PartitionMetrics{
+		cpu:         util.CPUS{Allocated: 8, Idle: 0, Total: 8},
+		jobsRunning: 1,
+	}, pm["partition-b"])
 }

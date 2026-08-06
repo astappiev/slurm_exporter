@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
@@ -141,12 +142,11 @@ func NewSchedulerCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (sc *SchedulerCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := util.RunCommand("sdiag")
+	sm, err := schedulerCache.Get()
 	if err != nil {
 		return err
 	}
 
-	sm := ParseSchedulerMetrics(out)
 	ch <- prometheus.MustNewConstMetric(sc.threads, prometheus.GaugeValue, sm.threads)
 	ch <- prometheus.MustNewConstMetric(sc.queueSize, prometheus.GaugeValue, sm.queueSize)
 	ch <- prometheus.MustNewConstMetric(sc.dbdQueueSize, prometheus.GaugeValue, sm.dbdQueueSize)
@@ -162,3 +162,13 @@ func (sc *SchedulerCollector) Collect(ch chan<- prometheus.Metric) error {
 
 	return nil
 }
+
+func fetchSchedulerMetrics() (*SchedulerMetrics, error) {
+	out, err := util.RunCommand(*cliTimeout, "sdiag")
+	if err != nil {
+		return nil, err
+	}
+	return ParseSchedulerMetrics(out), nil
+}
+
+var schedulerCache = newThrottledCache(fetchSchedulerMetrics, func() time.Duration { return *defaultPollInterval })

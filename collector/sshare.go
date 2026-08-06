@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
@@ -67,15 +68,24 @@ func NewFairShareCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (fsc *FairShareCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := util.RunCommand("sshare", "-n", "-P", "-o", "account,fairshare")
+	fsm, err := fairShareCache.Get()
 	if err != nil {
 		return err
 	}
 
-	fsm := ParseFairShareMetrics(out)
 	for f := range fsm {
 		ch <- prometheus.MustNewConstMetric(fsc.fairshare, prometheus.GaugeValue, fsm[f].fairshare, f)
 	}
 
 	return nil
 }
+
+func fetchFairShareMetrics() (map[string]*FairShareMetrics, error) {
+	out, err := util.RunCommand(*cliTimeout, "sshare", "-n", "-P", "-o", "account,fairshare")
+	if err != nil {
+		return nil, err
+	}
+	return ParseFairShareMetrics(out), nil
+}
+
+var fairShareCache = newThrottledCache(fetchFairShareMetrics, func() time.Duration { return *defaultPollInterval })

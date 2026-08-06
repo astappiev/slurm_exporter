@@ -1,0 +1,6 @@
+gpu-node-02 partition-a mixed 56/72/0/128 229376 1031000 gpu:a100:8(S:0-1) gpu:a100:7(IDX:0-5,7)
+gpu-node-02 fallback* mixed 56/72/0/128 229376 1031000 gpu:a100:8(S:0-1) gpu:a100:7(IDX:0-5,7)
+gpu-node-05 partition-a idle 0/128/0/128 0 1031000 gpu:a100_80gb:6(S:0-1),gpu:a100:2(S:1) gpu:a100_80gb:0(IDX:N/A),gpu:a100:0(IDX:N/A)
+gpu-node-05 fallback* idle 0/128/0/128 0 1031000 gpu:a100_80gb:6(S:0-1),gpu:a100:2(S:1) gpu:a100_80gb:0(IDX:N/A),gpu:a100:0(IDX:N/A)
+gpu-node-07 partition-b allocated 32/480/0/512 262144 1031000 gpu:h100:8(S:0-1) gpu:h100:1(IDX:5)
+gpu-node-07 fallback* allocated 32/480/0/512 262144 1031000 gpu:h100:8(S:0-1) gpu:h100:1(IDX:5)

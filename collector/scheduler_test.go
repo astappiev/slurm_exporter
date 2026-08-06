@@ -10,7 +10,7 @@ import (
 
 func TestSchedulerMetrics(t *testing.T) {
 	// Read the input data from a file
-	file, _ := os.Open("fixtures/sdiag/sdiag.txt")
+	file, _ := os.Open("fixtures/sdiag/scheduler.txt")
 	data, _ := io.ReadAll(file)
 	schedulerMetrics := ParseSchedulerMetrics(data)
 

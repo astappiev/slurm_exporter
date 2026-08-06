@@ -1,0 +1,6 @@
+10001|project-a|user-a|PENDING|8|4G|partition-a|QOSMaxGRESPerUser
+10002|project-b|user-b|PENDING|32|256G|partition-b|Dependency
+10003|project-a|user-a|RUNNING|8|4G|partition-a|None
+10004|project-c|service-a|RUNNING|8|71G|partition-c|None
+10005|project-b|user-b|COMPLETED|12|96G|partition-b|None
+10006|project-d|user-c|PENDING|8|64G|fallback|DependencyNeverSatisfied

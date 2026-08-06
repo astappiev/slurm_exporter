@@ -35,6 +35,8 @@ You need a Go development environment. Then, simply run `make` to build the exec
 * Download executable from [GitHub Releases](https://github.com/astappiev/slurm_exporter/releases) or build from sources; 
 * Copy the executable `slurm_exporter` to a node with access to the Slurm command-line interface;
 * Check options to disable/enable collectors and set the port to listen to `slurm_exporter -h`;
+
+  `--cli.timeout` (or `CLI_TIMEOUT`) controls the maximum duration of each Slurm CLI command; it defaults to `10s`. Slurm CLI results are cached for `--collector.cache-ttl` (default `30s`) so simultaneous scrapes do not duplicate work.
 * A [Systemd Unit](https://www.freedesktop.org/software/systemd/man/systemd.service.html) file to run the executable as service is available in [examples/systemd/slurm_exporter.service](examples/systemd/slurm_exporter.service).
 
 ## Exported Metrics

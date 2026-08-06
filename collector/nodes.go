@@ -19,12 +19,8 @@ package collector
 
 import (
 	"log/slog"
-	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 
-	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -42,61 +38,36 @@ type NodesMetrics struct {
 	plnd  float64
 }
 
-func ParseNodesMetrics(input []byte) *NodesMetrics {
-	var (
-		alloc = regexp.MustCompile(`^alloc`)
-		comp  = regexp.MustCompile(`^comp`)
-		down  = regexp.MustCompile(`^down`)
-		drain = regexp.MustCompile(`^drain`)
-		fail  = regexp.MustCompile(`^fail`)
-		err   = regexp.MustCompile(`^err`)
-		idle  = regexp.MustCompile(`^idle`)
-		maint = regexp.MustCompile(`^maint`)
-		mix   = regexp.MustCompile(`^mix`)
-		resv  = regexp.MustCompile(`^res`)
-		plnd  = regexp.MustCompile(`^plan`)
-	)
-
-	lines := util.SplitLines(input)
-	// Sort and remove all the duplicates from the 'sinfo' output
-	sort.Strings(lines)
-	linesUniq := util.RemoveDuplicates(lines)
-
-	var nm NodesMetrics
-	for _, line := range linesUniq {
-		if strings.Contains(line, ",") {
-			parts := strings.Split(line, ",")
-
-			count, _ := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-			state := parts[1]
-
-			switch {
-			case alloc.MatchString(state) == true:
-				nm.alloc += count
-			case comp.MatchString(state) == true:
-				nm.comp += count
-			case down.MatchString(state) == true:
-				nm.down += count
-			case drain.MatchString(state) == true:
-				nm.drain += count
-			case fail.MatchString(state) == true:
-				nm.fail += count
-			case err.MatchString(state) == true:
-				nm.err += count
-			case idle.MatchString(state) == true:
-				nm.idle += count
-			case maint.MatchString(state) == true:
-				nm.maint += count
-			case mix.MatchString(state) == true:
-				nm.mix += count
-			case resv.MatchString(state) == true:
-				nm.resv += count
-			case plnd.MatchString(state) == true:
-				nm.plnd += count
-			}
+func nodesMetricsFromInfo(nodes []NodeInfo) *NodesMetrics {
+	nm := &NodesMetrics{}
+	for _, node := range nodes {
+		state := strings.ToLower(node.State)
+		switch {
+		case strings.HasPrefix(state, "alloc"):
+			nm.alloc++
+		case strings.HasPrefix(state, "comp"):
+			nm.comp++
+		case strings.HasPrefix(state, "down"):
+			nm.down++
+		case strings.HasPrefix(state, "drain"):
+			nm.drain++
+		case strings.HasPrefix(state, "fail"):
+			nm.fail++
+		case strings.HasPrefix(state, "err"):
+			nm.err++
+		case strings.HasPrefix(state, "idle"):
+			nm.idle++
+		case strings.HasPrefix(state, "maint"):
+			nm.maint++
+		case strings.HasPrefix(state, "mix"):
+			nm.mix++
+		case strings.HasPrefix(state, "res"):
+			nm.resv++
+		case strings.HasPrefix(state, "plan"):
+			nm.plnd++
 		}
 	}
-	return &nm
+	return nm
 }
 
 type NodesCollector struct {
@@ -136,12 +107,12 @@ func NewNodesCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (nc *NodesCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := util.RunCommand("sinfo", "-h", "-a", "-o %D,%T")
+	nodes, err := nodeCache.Get()
 	if err != nil {
 		return err
 	}
 
-	nm := ParseNodesMetrics(out)
+	nm := nodesMetricsFromInfo(uniqueNodes(nodes))
 	ch <- prometheus.MustNewConstMetric(nc.alloc, prometheus.GaugeValue, nm.alloc)
 	ch <- prometheus.MustNewConstMetric(nc.comp, prometheus.GaugeValue, nm.comp)
 	ch <- prometheus.MustNewConstMetric(nc.down, prometheus.GaugeValue, nm.down)

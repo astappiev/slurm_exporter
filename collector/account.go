@@ -19,11 +19,8 @@ package collector
 
 import (
 	"log/slog"
-	"regexp"
-	"strconv"
 	"strings"
 
-	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -33,42 +30,6 @@ type JobMetrics struct {
 	running     float64
 	runningCpus float64
 	suspended   float64
-}
-
-func ParseAccountMetrics(input []byte) map[string]*JobMetrics {
-	accounts := make(map[string]*JobMetrics)
-
-	var (
-		pending   = regexp.MustCompile(`^pending`)
-		running   = regexp.MustCompile(`^running`)
-		suspended = regexp.MustCompile(`^suspended`)
-	)
-
-	for _, line := range util.SplitLines(input) {
-		if strings.Contains(line, "|") {
-			parts := strings.Split(line, "|")
-
-			account := parts[1]
-			_, key := accounts[account]
-			if !key {
-				accounts[account] = &JobMetrics{}
-			}
-			state := strings.ToLower(parts[2])
-			cpus, _ := strconv.ParseFloat(parts[3], 64)
-
-			switch {
-			case pending.MatchString(state) == true:
-				accounts[account].pending++
-				accounts[account].pendingCpus += cpus
-			case running.MatchString(state) == true:
-				accounts[account].running++
-				accounts[account].runningCpus += cpus
-			case suspended.MatchString(state) == true:
-				accounts[account].suspended++
-			}
-		}
-	}
-	return accounts
 }
 
 type AccountCollector struct {
@@ -96,12 +57,12 @@ func NewAccountCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (ac *AccountCollector) Collect(ch chan<- prometheus.Metric) error {
-	out, err := util.RunCommand("squeue", "-a", "-r", "-h", "-o %A|%a|%T|%C")
+	jobs, err := jobCache.Get()
 	if err != nil {
 		return err
 	}
 
-	am := ParseAccountMetrics(out)
+	am := accountMetricsFromJobs(jobs)
 	for a := range am {
 		if am[a].pending > 0 {
 			ch <- prometheus.MustNewConstMetric(ac.pending, prometheus.GaugeValue, am[a].pending, a)
@@ -121,4 +82,27 @@ func (ac *AccountCollector) Collect(ch chan<- prometheus.Metric) error {
 	}
 
 	return nil
+}
+
+func accountMetricsFromJobs(jobs []JobInfo) map[string]*JobMetrics {
+	accounts := make(map[string]*JobMetrics)
+	for _, job := range jobs {
+		if job.Account == "" {
+			continue
+		}
+		if accounts[job.Account] == nil {
+			accounts[job.Account] = &JobMetrics{}
+		}
+		switch {
+		case strings.HasPrefix(strings.ToLower(job.State), "pending"):
+			accounts[job.Account].pending++
+			accounts[job.Account].pendingCpus += job.CPUs
+		case strings.HasPrefix(strings.ToLower(job.State), "running"):
+			accounts[job.Account].running++
+			accounts[job.Account].runningCpus += job.CPUs
+		case strings.HasPrefix(strings.ToLower(job.State), "suspended"):
+			accounts[job.Account].suspended++
+		}
+	}
+	return accounts
 }

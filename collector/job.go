@@ -59,7 +59,7 @@ func ParseJobMetrics(logger *slog.Logger, input []byte) []*JobIdMetrics {
 		jobMetrics, err := ParseJobLine(line)
 		if jobMetrics != nil {
 			metrics = append(metrics, jobMetrics)
-		} else if err == nil {
+		} else if logger != nil {
 			logger.Warn("Unable to parser job line", "err", err)
 		}
 	}
@@ -68,6 +68,18 @@ func ParseJobMetrics(logger *slog.Logger, input []byte) []*JobIdMetrics {
 }
 
 func ParseElapsedTime(elapsedStr string) (float64, error) {
+	days := 0
+	if dayAndTime := strings.Split(elapsedStr, "-"); len(dayAndTime) == 2 {
+		var err error
+		days, err = strconv.Atoi(dayAndTime[0])
+		if err != nil {
+			return 0, err
+		}
+		elapsedStr = dayAndTime[1]
+	} else if len(dayAndTime) != 1 {
+		return 0, fmt.Errorf("invalid elapsed time format: %s", elapsedStr)
+	}
+
 	parts := strings.Split(elapsedStr, ":")
 	if len(parts) != 3 {
 		return 0, fmt.Errorf("invalid elapsed time format: %s", elapsedStr)
@@ -88,7 +100,7 @@ func ParseElapsedTime(elapsedStr string) (float64, error) {
 		return 0, err
 	}
 
-	elapsedSeconds := float64(hours*3600 + minutes*60 + seconds)
+	elapsedSeconds := float64(days*24*3600 + hours*3600 + minutes*60 + seconds)
 	return elapsedSeconds, nil
 }
 
@@ -109,14 +121,7 @@ func NewJobCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (jc *JobCollector) Collect(ch chan<- prometheus.Metric) error {
-	// Calculate the time one hour ago
-	oneHourAgoTime := time.Now().Add(-30 * time.Hour)
-	currentTime := time.Now()
-	out, err := util.RunCommand("sacct", "--state=COMPLETED",
-		"-S"+oneHourAgoTime.Format("2006-01-02T15:04:05"),
-		"-E"+currentTime.Format("2006-01-02T15:04:05"),
-		"-X", "-n", "-a",
-		"--format=JobID,JobName,User,Elapsed")
+	out, err := jobHistoryCache.Get()
 	if err != nil {
 		return err
 	}
@@ -134,3 +139,20 @@ func (jc *JobCollector) Collect(ch chan<- prometheus.Metric) error {
 
 	return nil
 }
+
+func fetchJobHistory() ([]byte, error) {
+	// Calculate the time one hour ago
+	oneHourAgoTime := time.Now().Add(-30 * time.Hour)
+	currentTime := time.Now()
+	out, err := util.RunCommand(*cliTimeout, "sacct", "--state=COMPLETED",
+		"-S"+oneHourAgoTime.Format("2006-01-02T15:04:05"),
+		"-E"+currentTime.Format("2006-01-02T15:04:05"),
+		"-X", "-n", "-a",
+		"--format=JobID,JobName,User,Elapsed")
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+var jobHistoryCache = newThrottledCache(fetchJobHistory, func() time.Duration { return *defaultPollInterval })

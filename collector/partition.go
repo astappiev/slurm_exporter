@@ -19,7 +19,6 @@ package collector
 
 import (
 	"log/slog"
-	"strings"
 
 	"github.com/astappiev/slurm_exporter/util"
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,44 +28,6 @@ type PartitionMetrics struct {
 	cpu         util.CPUS
 	jobsPending float64
 	jobsRunning float64
-}
-
-func ParsePartitionMetrics(input []byte, runningOutput []byte, pendingOutput []byte) map[string]*PartitionMetrics {
-	partitions := make(map[string]*PartitionMetrics)
-
-	for _, line := range util.SplitLines(input) {
-		if strings.Contains(line, ",") {
-			parts := strings.Split(line, ",")
-
-			// name of a partition
-			partition := parts[0]
-			_, key := partitions[partition]
-			if !key {
-				partitions[partition] = &PartitionMetrics{}
-			}
-			partitions[partition].cpu = util.ParseCPUS(parts[1])
-		}
-	}
-
-	// get list of pending jobs by partition name
-	for _, partition := range util.SplitLines(pendingOutput) {
-		// accumulate the number of pending jobs
-		_, key := partitions[partition]
-		if key {
-			partitions[partition].jobsPending += 1
-		}
-	}
-
-	// get list of running jobs by partition name
-	for _, partition := range util.SplitLines(runningOutput) {
-		// accumulate the number of running jobs
-		_, key := partitions[partition]
-		if key {
-			partitions[partition].jobsRunning += 1
-		}
-	}
-
-	return partitions
 }
 
 type PartitionCollector struct {
@@ -96,20 +57,16 @@ func NewPartitionCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (pc *PartitionCollector) Collect(ch chan<- prometheus.Metric) error {
-	sinfoOutput, err := util.RunCommand("sinfo", "-h", "-o%R,%C")
+	nodes, err := nodeCache.Get()
 	if err != nil {
 		return err
 	}
-	squeueRunningOutput, err := util.RunCommand("squeue", "-a", "-r", "-h", "-o%P", "--states=RUNNING")
-	if err != nil {
-		return err
-	}
-	squeuePendingOutput, err := util.RunCommand("squeue", "-a", "-r", "-h", "-o%P", "--states=PENDING")
+	jobs, err := jobCache.Get()
 	if err != nil {
 		return err
 	}
 
-	pm := ParsePartitionMetrics(sinfoOutput, squeueRunningOutput, squeuePendingOutput)
+	pm := partitionMetricsFromInfo(nodes, jobs)
 	for p := range pm {
 		if pm[p].cpu.Allocated > 0 {
 			ch <- prometheus.MustNewConstMetric(pc.allocated, prometheus.GaugeValue, pm[p].cpu.Allocated, p)
@@ -132,4 +89,30 @@ func (pc *PartitionCollector) Collect(ch chan<- prometheus.Metric) error {
 	}
 
 	return nil
+}
+
+func partitionMetricsFromInfo(nodes []NodeInfo, jobs []JobInfo) map[string]*PartitionMetrics {
+	partitions := make(map[string]*PartitionMetrics)
+	for _, node := range nodes {
+		if partitions[node.Partition] == nil {
+			partitions[node.Partition] = &PartitionMetrics{}
+		}
+		p := partitions[node.Partition]
+		p.cpu.Allocated += node.CPU.Allocated
+		p.cpu.Idle += node.CPU.Idle
+		p.cpu.Other += node.CPU.Other
+		p.cpu.Total += node.CPU.Total
+	}
+	for _, job := range jobs {
+		if partitions[job.Partition] == nil {
+			continue
+		}
+		if job.State == "PENDING" {
+			partitions[job.Partition].jobsPending++
+		}
+		if job.State == "RUNNING" {
+			partitions[job.Partition].jobsRunning++
+		}
+	}
+	return partitions
 }

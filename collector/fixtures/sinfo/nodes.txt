@@ -1,5 +1,0 @@
-20,mixed
-9,idle
-1,allocated
-2,drained*
-5,drained

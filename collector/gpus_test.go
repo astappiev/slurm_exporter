@@ -1,27 +1,40 @@
 package collector
 
 import (
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
+	"github.com/astappiev/slurm_exporter/util"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGPUsMetrics(t *testing.T) {
-	testDataPaths, _ := filepath.Glob("fixtures/sinfo/slurm-*")
-	for _, testDataPath := range testDataPaths {
-		slurmVersion := strings.TrimPrefix(testDataPath, "fixtures/sinfo/slurm-")
-		t.Logf("slurm-%s", slurmVersion)
-
-		file, _ := os.Open(testDataPath + "/gpus.txt")
-		data, _ := io.ReadAll(file)
-
-		metrics := ParseGPUsMetrics(data)
-		assert.Equal(t, 41.0, metrics.idle)
-		assert.Equal(t, 7.0, metrics.alloc)
-		assert.Equal(t, 48.0, metrics.total)
+func TestGPUsMetricsFromInfo(t *testing.T) {
+	nodes := []NodeInfo{
+		{
+			Name: "gpu-node-01",
+			GRES: []util.GRES{
+				{Kind: "gpu", Type: "a100", Total: 8},
+				{Kind: "cpu", Type: "core", Total: 128},
+			},
+			GRESUsed: []util.GRES{
+				{Kind: "gpu", Type: "a100", Total: 3},
+			},
+		},
+		{
+			Name: "gpu-node-02",
+			GRES: []util.GRES{
+				{Kind: "gpu", Type: "h100", Total: 4},
+			},
+			GRESUsed: []util.GRES{
+				{Kind: "gpu", Type: "h100", Total: 4},
+			},
+		},
 	}
+
+	cm := gpusMetricsFromInfo(nodes)
+	assert.Equal(t, &GPUsMetrics{alloc: 7, idle: 5, total: 12, utilization: 7.0 / 12.0}, cm)
+}
+
+func TestGPUsMetricsFromInfoNoGPUs(t *testing.T) {
+	cm := gpusMetricsFromInfo([]NodeInfo{{Name: "cpu-only"}})
+	assert.Equal(t, &GPUsMetrics{}, cm)
 }
