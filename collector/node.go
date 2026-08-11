@@ -60,6 +60,9 @@ func (c *NodeCollector) Collect(ch chan<- prometheus.Metric) error {
 	if err != nil {
 		return err
 	}
+	if len(infos) == 0 {
+		return ErrNoData
+	}
 
 	for _, node := range uniqueNodes(infos) {
 		ch <- prometheus.MustNewConstMetric(c.cpuAlloc, prometheus.GaugeValue, node.CPU.Allocated, node.Name, node.State)

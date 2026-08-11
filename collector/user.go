@@ -90,6 +90,9 @@ func (uc *UserCollector) Collect(ch chan<- prometheus.Metric) error {
 	if err != nil {
 		return err
 	}
+	if len(jobs) == 0 {
+		return ErrNoData
+	}
 
 	um := userMetricsFromJobs(jobs)
 	for u := range um {

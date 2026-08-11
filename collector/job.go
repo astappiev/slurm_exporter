@@ -127,6 +127,10 @@ func (jc *JobCollector) Collect(ch chan<- prometheus.Metric) error {
 	}
 
 	jobMetrics := ParseJobMetrics(jc.logger, out)
+	if len(jobMetrics) == 0 {
+		return ErrNoData
+	}
+
 	for _, metric := range jobMetrics {
 		if metric == nil {
 			jc.logger.Warn("Skipping nil metric")

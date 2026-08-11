@@ -38,8 +38,7 @@ func TestThrottledCacheCoalescesConcurrentGets(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 8 {
-		wg.Add(1)
-		go func() { defer wg.Done(); _, err := cache.Get(); assert.NoError(t, err) }()
+		wg.Go(func() { _, err := cache.Get(); assert.NoError(t, err) })
 	}
 	wg.Wait()
 	assert.Equal(t, int32(1), calls.Load())

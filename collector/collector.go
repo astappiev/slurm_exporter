@@ -80,16 +80,6 @@ type SlurmCollector struct {
 	logger     *slog.Logger
 }
 
-// DisableDefaultCollectors sets the collector state to false for all collectors which
-// have not been explicitly enabled on the command line.
-func DisableDefaultCollectors() {
-	for c := range collectorState {
-		if _, ok := forcedCollectors[c]; !ok {
-			*collectorState[c] = false
-		}
-	}
-}
-
 // collectorFlagAction generates a new action function for the given collector
 // to track whether it has been explicitly enabled or disabled from the command line.
 // A new action function is needed for each collector flag because the ParseContext
@@ -162,7 +152,7 @@ func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog
 	var success float64
 
 	if err != nil {
-		if IsNoDataError(err) {
+		if errors.Is(err, ErrNoData) {
 			logger.Debug("collector returned no data", "name", name, "duration_seconds", duration.Seconds(), "err", err)
 		} else {
 			logger.Error("collector failed", "name", name, "duration_seconds", duration.Seconds(), "err", err)
@@ -184,7 +174,3 @@ type Collector interface {
 
 // ErrNoData indicates the collector found no data to collect, but had no other error.
 var ErrNoData = errors.New("collector returned no data")
-
-func IsNoDataError(err error) bool {
-	return err == ErrNoData
-}

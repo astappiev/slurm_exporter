@@ -65,6 +65,9 @@ func (pc *PartitionCollector) Collect(ch chan<- prometheus.Metric) error {
 	if err != nil {
 		return err
 	}
+	if len(nodes) == 0 {
+		return ErrNoData
+	}
 
 	pm := partitionMetricsFromInfo(nodes, jobs)
 	for p := range pm {

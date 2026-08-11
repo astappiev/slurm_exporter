@@ -61,6 +61,9 @@ func (ac *AccountCollector) Collect(ch chan<- prometheus.Metric) error {
 	if err != nil {
 		return err
 	}
+	if len(jobs) == 0 {
+		return ErrNoData
+	}
 
 	am := accountMetricsFromJobs(jobs)
 	for a := range am {

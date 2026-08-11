@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -30,7 +31,7 @@ func RunCommand(timeout time.Duration, executable string, arguments ...string) (
 	defer cancel()
 	subprocess := exec.CommandContext(ctx, executable, arguments...)
 	out, err := subprocess.CombinedOutput()
-	if ctx.Err() == context.DeadlineExceeded {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return nil, fmt.Errorf("command timed out after %s: %s", timeout, executable)
 	}
 	if err != nil {
@@ -76,7 +77,7 @@ func ParseGRES(input string) []GRES {
 	}
 
 	var results []GRES
-	for _, single := range strings.Split(input, ",") {
+	for single := range strings.SplitSeq(input, ",") {
 		parts := strings.Split(single, ":")
 		if len(parts) < 2 {
 			continue

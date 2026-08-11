@@ -72,6 +72,9 @@ func (fsc *FairShareCollector) Collect(ch chan<- prometheus.Metric) error {
 	if err != nil {
 		return err
 	}
+	if len(fsm) == 0 {
+		return ErrNoData
+	}
 
 	for f := range fsm {
 		ch <- prometheus.MustNewConstMetric(fsc.fairshare, prometheus.GaugeValue, fsm[f].fairshare, f)
